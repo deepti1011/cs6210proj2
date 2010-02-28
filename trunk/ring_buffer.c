@@ -4,12 +4,17 @@
 #include <fcntl.h>
 
 #define DIGITS 10
+#define MAXSIZE 128
 
 int size = 0;
 int start = 0;
 int end = 0;
 
 void push(int x, int p, int fd) {
+  if(size == (MAXSIZE - 1)) {
+    
+  }
+
   char x_string[DIGITS + 1];
   char p_string[DIGITS + 1];
 
