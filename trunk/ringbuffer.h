@@ -31,23 +31,4 @@ void init_ring_buffer(struct ring_buffer* rbuff);
 void write_request(struct ring_buffer* rbuff, int x, int p, 
 		   pthread_cond_t* response_ready);
 
-void write_request(struct ring_buffer* rbuff, int x, int p, 
-		   pthread_cond_t* response_ready) {
-  rbuff->request_buffer[rbuff->request_end].x = x;
-  rbuff->request_buffer[rbuff->request_end].p = p;
-  rbuff->request_buffer[rbuff->request_end].result = 
-    &rbuff->response_buffer[rbuff->response_end];
-  rbuff->request_end++;
-  
-  response_ready = &rbuff->response_buffer[rbuff->response_end].response_ready;
-  rbuff->response_end++;
-  pthread_cond_signal(&rbuff->nonempty);
-  
-  if(rbuff->response_end == MAXSIZE) {
-    rbuff->response_end = 0;
-  }
-  
-  if(rbuff->request_end == MAXSIZE) {
-    rbuff->request_end = 0;
-  }
-}
+

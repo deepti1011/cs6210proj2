@@ -1,32 +1,8 @@
-#include "server.h"
+#include "ringbuffer.h"
 #include <sys/mman.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-
-void init_ring_buffer(struct ring_buffer* rbuff) {
-  rbuff->request_end = 0;
-  rbuff->request_start = 0;
-
-  rbuff->response_end = 0;
-  rbuff->response_start = 0;
-
-  pthread_mutexattr_t mattr;
-  pthread_mutexattr_init(&mattr);
-  pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED);  
-  pthread_mutex_init(&rbuff->request_mutex, &mattr);
-  pthread_mutex_init(&rbuff->response_mutex, &mattr);
-
-  pthread_condattr_t  cattr;
-  pthread_condattr_init(&cattr);
-  pthread_condattr_setpshared(&cattr, PTHREAD_PROCESS_SHARED);
-  pthread_cond_init(&rbuff->nonempty, &cattr);
-
-  int i;
-  for(i = 0; i < MAXSIZE; i++) {
-    pthread_cond_init(&rbuff->response_buffer[i].response_ready, &cattr);
-  }
-}
 
 int main() {
   struct ring_buffer rbuff;
