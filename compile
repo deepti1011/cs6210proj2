@@ -1,0 +1,2 @@
+gcc -lpthread -lrt -o client client.c
+gcc -lrt -o server server.c
