@@ -29,11 +29,13 @@ int main() {
   while(1) {
     pthread_mutex_lock(&shm_rbuff->request_mutex);
     pthread_cond_wait(&shm_rbuff->nonempty, &shm_rbuff->request_mutex);
-    /* process requests*/
-    int x = shm_rbuff->request_buffer[shm_rbuff->request_start].x;
-    int p = shm_rbuff->request_buffer[shm_rbuff->request_start].p;
-    printf("%d %d\n", x, p);
-    pthread_mutex_unlock(&shm_rbuff->request_mutex);  
+    printf("new requests\n");
+    pthread_mutex_lock(&shm_rbuff->response_mutex);
+    printf("response lock acquired\n");
+    process_requests(shm_rbuff);
+    printf("requests processed\n");
+    pthread_mutex_unlock(&shm_rbuff->response_mutex);
+    pthread_mutex_unlock(&shm_rbuff->request_mutex);
   }  
 
   munmap(shm_rbuff, sizeof(struct ring_buffer));
