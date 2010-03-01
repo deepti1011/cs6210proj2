@@ -1,38 +1,51 @@
+#include "server.h"
 #include <sys/mman.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 
-#define MAXSIZE 128
+void init_ring_buffer(struct ring_buffer* rbuff) {
+  rbuff->end = rbuff->buffer;
+  rbuff->start = rbuff->buffer;
 
-struct request {
-  int x;
-  int p;
-};
+  pthread_mutexattr_t mattr;
+  pthread_mutexattr_init(&mattr);
+  pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED);  
+  pthread_mutex_init(&rbuff->buffer_mutex, &mattr);
 
-struct request* start;
-struct request* end;
+  pthread_condattr_t  cattr;
+  pthread_condattr_init(&cattr);
+  pthread_condattr_setpshared(&cattr, PTHREAD_PROCESS_SHARED);
+  pthread_cond_init(&rbuff->nonempty, &cattr);  
+}
 
 int main() {
-  int fd = shm_open("requests", O_RDWR | O_CREAT, S_IRWXU | S_IRWXO);
+  struct ring_buffer rbuff;
+  init_ring_buffer(&rbuff);
   
-  struct request list[MAXSIZE];
-  list[0].x = 1;
-  list[0].p = 7;
+  int fd = shm_open(REQUESTS, O_RDWR | O_CREAT, S_IRWXU | S_IRWXO);
 
-  write(fd, list, sizeof(struct request) * MAXSIZE);
-  start = end = (struct request *)mmap(0, sizeof(struct request) * MAXSIZE,
-				       PROT_EXEC | PROT_READ | PROT_WRITE,
-				       MAP_SHARED, fd, 0);
-  if(start == MAP_FAILED) {
+  write(fd, &rbuff, sizeof(struct ring_buffer));
+  struct ring_buffer* shm_rbuff;
+
+  shm_rbuff = (struct ring_buffer *)mmap(0, sizeof(struct ring_buffer),
+					 PROT_EXEC | PROT_READ | PROT_WRITE,
+					 MAP_SHARED, fd, 0);
+
+  if(shm_rbuff == MAP_FAILED) {
     perror("Unable to map shared memory.");
     close(fd);
-    shm_unlink("requests");
+    shm_unlink(REQUESTS);
     return 1;
   }
 
   close(fd);
-  printf("%d %d\n",start->x, start->p);
   
-  /*shm_unlink("requests");*/
+  while(1) {
+    pthread_mutex_lock(&shm_rbuff->buffer_mutex);
+    pthread_cond_wait(&shm_rbuff->nonempty, &shm_rbuff->buffer_mutex);
+  }  
+
+  munmap(shm_rbuff, sizeof(struct ring_buffer));
+  shm_unlink(REQUESTS);
 }
