@@ -1,87 +1,37 @@
-#include <stdio.h>
-#include <unistd.h>
-#include <linux/unistd.h>
-#include <sys/syscall.h>
-#include <signal.h>
-#include <sys/time.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <sys/types.h>
+#include "server.h"
 #include <sys/mman.h>
-#include <fcntl.h> 
-#include <string.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
-#define NUM_THREADS 128
-#define INTERVAL 10 //in milliseconds
+int main() {
+  int fd = shm_open(DATA, O_RDWR | O_CREAT, S_IRWXU | S_IRWXO);
 
-pthread_t threads[NUM_THREADS];
-pthread_mutex_t mutex1 = PTHREAD_MUTEX_INITIALIZER;
+  struct ring_buffer* shm_rbuff;
+  shm_rbuff = (struct ring_buffer*)mmap(0, sizeof(struct ring_buffer),
+					PROT_EXEC | PROT_READ | PROT_WRITE,
+					MAP_SHARED, fd, 0);
 
+  if(shm_rbuff == MAP_FAILED) {
+    perror("Unable to map shared memory.");
+    close(fd);
+    shm_unlink(DATA);
+    return 1;
+  }
 
-/*
-Make Request Should Write to the Request file
-and return the requestID, make request should
-also lock the file and trigger the mutex cond
-variable so the server can operate on it.
-*/
-int make_request()
-{
-	return 0;	
+  close(fd);
+  
+  pthread_mutex_lock(&shm_rbuff->request_mutex);
+  int x = 10;
+  int p = 7;
+  pthread_cond_t* response_ready;
+  write_request(shm_rbuff, x, p, response_ready);
+  pthread_mutex_unlock(&shm_rbuff->request_mutex);
+
+  pthread_mutex_lock(&shm_rbuff->response_mutex);
+  pthread_cond_wait(response_ready, &shm_rbuff->response_mutex);
+  pthread_mutex_unlock(&shm_rbuff->response_mutex);
+
+  munmap(shm_rbuff, sizeof(struct ring_buffer));
+  shm_unlink(DATA);
 }
-/*
-Check Response should return 0 if response has
-not been received and 1 if it has, note this response
-takes in a requestID to be matched with the response.
-*/
-int check_response(int requestID)
-{
-	return 0;
-}
-/*
-This is just a helper to extract the return value 
-from the service.
-*/
-int get_response_value(int requestID)
-{
-	return 0;
-}
-
-void *StartThread(void *threadid)
-{
-   int received_response, requestID, retVal;
-   long tid;
-   tid = (long)threadid;
-   pthread_mutex_lock( &mutex1 );
-   requestID = make_request();
-   printf("Thread %ld has made a request and is awaiting response...\n", tid);
-   received_response = 0;
-   while(received_response == 0)
-   {
-	received_response = check_response(requestID);
-	if(received_response == 1)
-	{
-		retVal = get_response_value(requestID);
-	}
-   }
-   
-   pthread_mutex_unlock( &mutex1 );
-   printf("Thread %ld Finished with response: %d\n", tid, retVal);
-}
-
-int main (int argc, char *argv[])
-{
-   int rc;
-   int inx;
-   long t;
-   for(t=0; t<NUM_THREADS; t++){
-      rc = pthread_create(&threads[t], NULL, StartThread, (void *)t);
-      if (rc){
-         printf("ERROR; return code from pthread_create() is %d\n", rc);
-         exit(-1);
-      }
-      usleep(10);
-   }
-   for(inx=0; inx<NUM_THREADS; inx++)
-		pthread_join(threads[inx], NULL);
-}
-
