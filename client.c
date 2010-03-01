@@ -18,16 +18,14 @@ int main() {
     shm_unlink(DATA);
     return 1;
   }
-
   close(fd);
   
-  pthread_mutex_lock(&shm_rbuff->response_mutex);
-  pthread_mutex_lock(&shm_rbuff->request_mutex);
   int x = 10;
   int p = 7;
   pthread_cond_t* response_ready;
+  
+  pthread_mutex_lock(&shm_rbuff->response_mutex);
   write_request(shm_rbuff, x, p, response_ready);
-  pthread_mutex_unlock(&shm_rbuff->request_mutex);
   printf("request written\n");
 
   pthread_cond_wait(response_ready, &shm_rbuff->response_mutex);
