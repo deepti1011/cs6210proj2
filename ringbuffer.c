@@ -13,7 +13,7 @@ void read_request(struct ring_buffer* rbuff) {
   struct request* next = &rbuff->request_buffer[rbuff->request_reads % MAXSIZE];
   int result = pow(2.0, next->x);
   result = result % next->p;
-  printf("Received request (%d, %d) = %d\n", next->x, next->p, result);
+  /*printf("Received request (%d, %d) = %d\n", next->x, next->p, result);*/
   rbuff->request_reads++;
   
   rbuff->response_buffer[rbuff->response_writes % MAXSIZE] = result;
@@ -32,6 +32,11 @@ int write_request(struct ring_buffer* rbuff, int x, int p) {
   struct request* next;
 
   pthread_mutex_lock(&rbuff->data_mutex);
+  int size = rbuff->request_writes - rbuff->request_reads;
+
+  if(size > MAXSIZE - 1)
+    return -1;
+
   next = &rbuff->request_buffer[rbuff->request_writes % MAXSIZE];
   
   next->x = x;
