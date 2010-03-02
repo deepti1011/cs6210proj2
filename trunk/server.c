@@ -16,23 +16,19 @@ int main() {
   shm_rbuff = (struct ring_buffer *)mmap(0, sizeof(struct ring_buffer),
 					 PROT_EXEC | PROT_READ | PROT_WRITE,
 					 MAP_SHARED, fd, 0);
-
+  close(fd);  
   if(shm_rbuff == MAP_FAILED) {
     perror("Unable to map shared memory.");
-    close(fd);
     shm_unlink(DATA);
     return 1;
   }
-
-  close(fd);
+  
   
   while(1) {
-    pthread_mutex_lock(&shm_rbuff->request_mutex);
-    pthread_cond_wait(&shm_rbuff->nonempty, &shm_rbuff->request_mutex);
-    printf("new request\n");
-    pthread_mutex_unlock(&shm_rbuff->request_mutex);
+    pthread_mutex_lock(&shm_rbuff->data_mutex);
+    pthread_cond_wait(&shm_rbuff->nonempty, &shm_rbuff->data_mutex);
+    pthread_mutex_unlock(&shm_rbuff->data_mutex);
     process_requests(shm_rbuff);
-    printf("requests read\n");
   }  
 
   munmap(shm_rbuff, sizeof(struct ring_buffer));

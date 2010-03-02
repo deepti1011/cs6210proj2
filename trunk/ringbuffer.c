@@ -4,8 +4,7 @@
 #include <stdio.h>
 
 void read_request(struct ring_buffer* rbuff) {
-  printf("read request\n");
-  pthread_mutex_lock(&rbuff->request_mutex);
+  pthread_mutex_lock(&rbuff->data_mutex);
   int size = rbuff->request_writes - rbuff->request_reads;
 
   if(size < 1)
@@ -14,20 +13,14 @@ void read_request(struct ring_buffer* rbuff) {
   struct request* next = &rbuff->request_buffer[rbuff->request_reads % MAXSIZE];
   int result = pow(2.0, next->x);
   result = result % next->p;
-
+  printf("Received request (%d, %d) = %d\n", next->x, next->p, result);
   rbuff->request_reads++;
-  msync(rbuff, sizeof(struct ring_buffer), MS_SYNC | MS_INVALIDATE);
-  pthread_mutex_unlock(&rbuff->request_mutex);
-  printf("request read\n");
-
-  printf("write response\n");
-  pthread_mutex_lock(&rbuff->response_mutex);
+  
   rbuff->response_buffer[rbuff->response_writes % MAXSIZE] = result;
-  rbuff->response_writes++;  
-  pthread_cond_signal(&next->response_ready);
-  msync(rbuff, sizeof(struct ring_buffer), MS_SYNC | MS_INVALIDATE);
-  pthread_mutex_unlock(&rbuff->response_mutex);
-  printf("response written\n");
+  rbuff->response_writes++;
+  
+  pthread_cond_signal(&rbuff->response_ready[next->response]);
+  pthread_mutex_unlock(&rbuff->data_mutex);
 }
 
 void process_requests(struct ring_buffer* rbuff) {
@@ -35,22 +28,20 @@ void process_requests(struct ring_buffer* rbuff) {
     read_request(rbuff);
 }
 
-void write_request(struct ring_buffer* rbuff, int x, int p, 
-		   pthread_cond_t* response_ready) {
+int write_request(struct ring_buffer* rbuff, int x, int p) {
   struct request* next;
 
-  pthread_mutex_lock(&rbuff->request_mutex);
+  pthread_mutex_lock(&rbuff->data_mutex);
   next = &rbuff->request_buffer[rbuff->request_writes % MAXSIZE];
   
   next->x = x;
   next->p = p;
-  response_ready =  &next->response_ready;
-
   rbuff->request_writes++;
+  int response = next->response;
 
-  msync(rbuff, sizeof(struct ring_buffer), MS_SYNC | MS_INVALIDATE);
   pthread_cond_signal(&rbuff->nonempty);
-  pthread_mutex_unlock(&rbuff->request_mutex);
+  pthread_mutex_unlock(&rbuff->data_mutex);
+  return response;
 }
 
 void init_ring_buffer(struct ring_buffer* rbuff) {
@@ -63,9 +54,8 @@ void init_ring_buffer(struct ring_buffer* rbuff) {
   pthread_mutexattr_t mattr;
   pthread_mutexattr_init(&mattr);
   pthread_mutexattr_setpshared(&mattr, PTHREAD_PROCESS_SHARED);  
-  pthread_mutex_init(&rbuff->request_mutex, &mattr);
-  pthread_mutex_init(&rbuff->response_mutex, &mattr);
-
+  pthread_mutex_init(&rbuff->data_mutex, &mattr);
+  
   pthread_condattr_t  cattr;
   pthread_condattr_init(&cattr);
   pthread_condattr_setpshared(&cattr, PTHREAD_PROCESS_SHARED);
@@ -73,6 +63,7 @@ void init_ring_buffer(struct ring_buffer* rbuff) {
 
   int i;
   for(i = 0; i < MAXSIZE; i++) {
-    pthread_cond_init(&rbuff->request_buffer[i].response_ready, &cattr);
+    pthread_cond_init(&rbuff->response_ready[i], &cattr);
+    rbuff->request_buffer[i].response = i;
   }
 }
