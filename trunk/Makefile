@@ -1,13 +1,5 @@
-all: server client
+all: 
+	gcc -lm -lpthread -lrt -o server server.c ringbuffer.c
+	gcc -lm -lpthread -lrt -o client client.c ringbuffer.c
+	./server & ./client
 
-server:	server.o
-	gcc -o server server.o
-
-client: client.o
-	gcc -o client client.o
-
-server.o: server.c ringbuffer.c
-	gcc -lm -lpthread -lrt -o server.o server.c ringbuffer.c
-
-client.o: client.c ringbuffer.c
-	gcc -lm -lpthread -lrt -o client.o client.c ringbuffer.c
