@@ -1,1 +1,0 @@
-#define XMLRPC_HAVE_WCHAR 1
