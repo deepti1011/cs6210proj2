@@ -55,12 +55,7 @@ die_if_fault_occurred (xmlrpc_env * const envP) {
 void client_callback(void)
 {
   printf("Your RPC request was answered by %d server(s) with a value of %d\n", 
-	 num_responses, value);
-  /* Unnecessary to unlock a mutex that is about to be destroyed.
-   * This avoids any competition over the lock. */
-  /* pthread_mutex_unlock(&result_mutex); */
-  pthread_mutex_destroy(&result_mutex);
-  pthread_cond_destroy(&client_satisfied);
+	 num_responses, value);  
 }
 
 void* CustomClientStart(void* params)  
@@ -100,7 +95,13 @@ void* CustomClientStart(void* params)
   pthread_cond_wait(&client_satisfied, &result_mutex);
   /* run callback */
   (*callback)(); 
- 
+
+  /* Unnecessary to unlock a mutex that is about to be destroyed.
+   * This avoids any competition over the lock. */
+  /* pthread_mutex_unlock(&result_mutex); */
+  pthread_mutex_destroy(&result_mutex);
+  pthread_cond_destroy(&client_satisfied);
+
   return 0;
 }
 
