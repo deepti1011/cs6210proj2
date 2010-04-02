@@ -28,7 +28,7 @@ CLIENTPROGS = \
   synch_client \
   xmlrpc_sample_add_client \
   xmlrpc_asynch_client \
-  xmlrpc_synch_client \
+  xmlrpc_client \
 
 SERVERPROGS_CGI = \
   xmlrpc_sample_add_server.cgi
