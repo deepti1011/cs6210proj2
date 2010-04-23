@@ -149,6 +149,8 @@ int main() {
   
   store = rvm_init("store");
   data = rvm_map(store, "one", 1024);
+  rvm_unmap(store, data);
+  rvm_destroy(store, "one");
 
   free(store.dir);
 }
