@@ -1,3 +1,7 @@
+typedef struct segment {
+  void* data;
+  int size;
+}
 
 typedef struct rvm_t {
   char* dir;
