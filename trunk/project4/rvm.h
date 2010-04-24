@@ -1,13 +1,29 @@
-typedef struct segment {
-  void* data;
+struct range {
+  int offset;
   int size;
+};
+
+typedef struct _segment {
+  void* data;
+  char* name;
+  int size;
+  int numRanges;
+  struct range* ranges;
 } segment;
 
-typedef struct rvm_t {
-  char* dir;
-} rvm_t;
 
-typedef struct trans_t {} trans_t;
+struct _rvm_t {
+  char* dir;
+};
+
+typedef struct _rvm_t rvm_t;
+
+typedef struct _trans_t {
+  void** segbases;
+  int tid;
+  int numsegs;
+  struct _rvm_t rvm; 
+} trans_t;
 
 /*Initialization and Mapping */
 rvm_t rvm_init(const char *directory);
@@ -26,3 +42,8 @@ void rvm_truncate_log(rvm_t rvm);
 
 /*Library Output*/
 void rvm_verbose(int enable_flag);
+
+/*Helper methods*/
+void write_lock(int fd);
+void unlock(int fd);
+struct flock* file_lock(short type, short whence);
