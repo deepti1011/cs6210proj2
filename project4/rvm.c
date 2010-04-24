@@ -294,6 +294,28 @@ void rvm_about_to_modify(trans_t tid, void *segbase, int offset, int size)
 	printf("Leaving Modify\n");
 }
 
+void rvm_abort_trans(trans_t tid)
+{
+   int i, j;
+   for(i = 0; i < tid.numsegs; i++) {
+     for(j = 0; j < num_mapped; j++) {
+       if(tid.segbases[i] == mapped[j].data) {
+	int dirlen, seglen, fd;
+  	dirlen = strlen(tid.rvm.dir);
+  	seglen = strlen(mapped[j].name);
+
+  	char buffer[dirlen + seglen + 5];
+  	strcpy(buffer, tid.rvm.dir);
+  	strcat(buffer, mapped[j].name);
+  	fd = open(buffer, O_RDWR, S_IRWXU);
+  	printf("Aborting transaction, data not flushed.\n");
+  	unlock(fd);
+  	close(fd);
+	}
+     }
+   }	
+}
+
 /*
 int main() {
   rvm_t store;
