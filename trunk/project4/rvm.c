@@ -64,17 +64,21 @@ void* rvm_map(rvm_t rvm, const char *segname, int size_to_create) {
     return NULL;
   }
 
-  strcat(buffer, ".log");
+  /*strcat(buffer, ".log");
   log = open(buffer, O_RDWR | O_CREAT, S_IRWXU);
   printf("Locking log for segment.\n");
   write_lock(log);
-  printf("Lock successful.\n");
+  printf("Lock successful.\n");*/
   
+  lockf(fd, F_LOCK, size_to_create);
+
   struct stat info;
   if(fstat(fd, &info) != 0) {
     perror("Unable to get file info");
     return NULL;
   }
+
+  
   
   i = 0;
   for(i = 0; i < num_mapped; i++) {
@@ -119,41 +123,25 @@ void* rvm_map(rvm_t rvm, const char *segname, int size_to_create) {
   i = 0;
   lseek(fd, -1 * size_to_create, SEEK_END);
   while((i += write(fd, result, size_to_create - i)) < size_to_create);
+  
+  // lockf(fd, F_ULOCK, size_to_create); //Closing the fd has the same effect
   close(fd);
-  
-  
 
-  unlock(log);
+  /*unlock(log);
   printf("Segment file unlocked.\n");
-  close(log);
-  
+  close(log);*/
   
   return result;
 }
 
+/*
 void write_lock(int fd) {
-  FILE* file;
-  if((file = fdopen(fd, "r+")) == NULL)
-    perror("Unable to lock provided file.\n");
-  
-  flockfile(file);
-  // fcntl(fd, F_SETLKW, file_lock(F_WRLCK, SEEK_SET));
+  lockf(fd, F_LOCK, 
 }
 
 void unlock(int fd) {
-  funlockfile(fdopen(fd, "r+"));
-  // fcntl(fd, F_SETLKW, file_lock(F_UNLCK, SEEK_SET));
-}
-
-struct flock* file_lock(short type, short whence) {
-   static struct flock ret;
-    ret.l_type = type;
-    ret.l_start = 0;
-    ret.l_whence = whence;
-    ret.l_len = 0 ;
-    ret.l_pid = getpid() ;
-    return &ret ;
-}
+ 
+}*/
 
 void rvm_unmap(rvm_t rvm, void *segbase) {
   int i;
@@ -206,7 +194,7 @@ void lock_segment(rvm_t rvm , segment seg) {
   strcat(buffer, ".log");
 
   fd = open(buffer, O_RDWR, S_IRWXU);
-  write_lock(fd);
+  lockf(fd, F_LOCK, seg.size);
 }
 
 trans_t rvm_begin_trans(rvm_t rvm, int numsegs, void **segbases) {
@@ -246,7 +234,7 @@ void write_segment(rvm_t rvm, segment seg) {
   	i = 0;
   	while((i += write(fd, seg.data + offset, size)) < size);
   }
-  unlock(fd);
+  //lockf(fd, F_ULOCK, seg.size); //Unnecessary, close has the same effect
   close(fd);
 }
 
@@ -309,7 +297,8 @@ void rvm_abort_trans(trans_t tid)
   	strcat(buffer, mapped[j].name);
   	fd = open(buffer, O_RDWR, S_IRWXU);
   	printf("Aborting transaction, data not flushed.\n");
-  	unlock(fd);
+	//Unnecessary, close has the same effect
+	//lockf(fd, F_ULOCK, mapped[j].size); 
   	close(fd);
 	}
      }
