@@ -44,3 +44,5 @@ void rvm_verbose(int enable_flag);
 /*Helper methods*/
 void write_lock(int fd);
 void unlock(int fd);
+void logSegment(rvm_t rvm, segment seg, char* logMessage);
+void logRVM(rvm_t rvm, char* logMessage);
