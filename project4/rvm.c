@@ -75,6 +75,7 @@ void* rvm_map(rvm_t rvm, const char *segname, int size_to_create) {
   struct stat info;
   if(fstat(fd, &info) != 0) {
     perror("Unable to get file info");
+    close(fd);
     return NULL;
   }
 
@@ -84,6 +85,7 @@ void* rvm_map(rvm_t rvm, const char *segname, int size_to_create) {
   for(i = 0; i < num_mapped; i++) {
     if(strcmp(mapped[i].name, segname) == 0) {
       fprintf(stderr, "Illegal attempt to map segment\n");
+      close(fd);
       return NULL;
     } 
   }
