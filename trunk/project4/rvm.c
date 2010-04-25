@@ -41,10 +41,6 @@ rvm_t rvm_init(const char *directory) {
   /*Create log file if it does not already exist*/
   close(open(buffer, O_RDONLY | O_CREAT, S_IRWXU));
 
-  memset(buffer, '\0', 1024);
-  strcpy(buffer, "segments.log");
-  close(open(buffer, O_RDONLY | O_CREAT, S_IRWXU));
-
   char logMessage[100];
   strcpy(logMessage, "RVM_INIT ");
   strcat(logMessage, "\n");
@@ -158,8 +154,7 @@ void* rvm_map(rvm_t rvm, const char *segname, int size_to_create) {
   memset(buffer, '\0', 1024);
   strcpy(buffer, segname);
   buffer[seglen] = '\n';
-  buffer[seglen + 1] = '\0';
-  write(fd, buffer, seglen + 2);
+  write(fd, buffer, seglen + 1);
   close(fd);
 
   return result;
@@ -431,25 +426,20 @@ void rvm_truncate_log(rvm_t rvm)
 
   memset(buffer, '\0', 1024);
   fgets(buffer, 1024, file);
-  for(i = 0; buffer[i] != '\n'; i++);
 
-  while(buffer[i] != EOF) { 
+  while(buffer[0] != '\0') { 
+    for(i = 0; buffer[i] != '\n'; i++);
     buffer[i] = '\0';
+
+    memset(segment, '\0', 1024);
     strcpy(segment, rvm.dir);
     strcat(segment, buffer);
     strcat(segment, ".log");
     
     open(segment, O_RDWR | O_TRUNC, S_IRWXU);
     memset(buffer, '\0', 1024);
-    fgets(buffer, 1024, file);
-    for(i = 0; buffer[i] != '\n'; i++);
+    fgets(buffer, 1024, file);   
   }
-
-  strcpy(segment, rvm.dir);
-  strcat(segment, buffer);
-  strcat(segment, ".log");
-    
-  open(segment, O_RDWR | O_TRUNC, S_IRWXU);
   
   //truncate main log with playthrough
   int fd, j;
