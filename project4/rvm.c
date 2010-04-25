@@ -12,6 +12,7 @@
 
 segment mapped[MAXSEGS];
 int num_mapped;
+int verbose = 0;
 long tid = 0;
 
 rvm_t rvm_init(const char *directory) {
@@ -38,7 +39,16 @@ rvm_t rvm_init(const char *directory) {
   strcat(buffer, "store.log");
 
   /*Create log file if it does not already exist*/
-  close(open(buffer, O_RDONLY | O_CREAT | O_TRUNC, S_IRWXU));
+  close(open(buffer, O_RDONLY | O_CREAT, S_IRWXU));
+
+  memset(buffer, '\0', 1024);
+  strcpy(buffer, "segments.log");
+  close(open(buffer, O_RDONLY | O_CREAT, S_IRWXU));
+
+  char logMessage[100];
+  strcpy(logMessage, "RVM_INIT ");
+  strcat(logMessage, "\n");
+  logRVM(store, logMessage);
 
   return store;
 }
@@ -47,15 +57,14 @@ void* rvm_map(rvm_t rvm, const char *segname, int size_to_create) {
   int dirlen, seglen, fd, remains, i, log;
   void * result;
 
+  seglen = strlen(segname);
+  
   if(num_mapped == MAXSEGS) {
     fprintf(stderr, "Maximum number of segments reached.\n");
     return NULL;
   }
-
-  dirlen = strlen(rvm.dir);
-  seglen = strlen(segname);
-
-  char buffer[dirlen + seglen + 5];
+  
+  char buffer[1024];
   strcpy(buffer, rvm.dir);
   strcat(buffer, segname);
 
@@ -109,13 +118,16 @@ void* rvm_map(rvm_t rvm, const char *segname, int size_to_create) {
     strcpy(mapped[num_mapped].name, segname); 
     num_mapped++;
   } else {
-    for(i = 0; i < num_mapped; i++) {
+    for(i = 0; i <= num_mapped; i++) {
       if(mapped[i].data == result) {
 	mapped[i].size = size_to_create;
 	break;
-      } else if(i == num_mapped - 1) {
+      } else if(i == num_mapped) {
 	mapped[num_mapped].data = result;
 	mapped[num_mapped].size = size_to_create;
+	mapped[num_mapped].name = (char*)malloc(seglen * sizeof(char));
+        mapped[num_mapped].ranges = (struct range*) malloc(10 * sizeof(struct range));
+	strcpy(mapped[num_mapped].name, segname);
 	num_mapped++;
 	break;
       }
@@ -124,15 +136,32 @@ void* rvm_map(rvm_t rvm, const char *segname, int size_to_create) {
 
   i = 0;
   lseek(fd, -1 * size_to_create, SEEK_END);
-  while((i += write(fd, result, size_to_create - i)) < size_to_create);
-  
+  while((i += write(fd, result + i, size_to_create - i)) < size_to_create);
+   
+  char logMessage[100];
+  strcpy(logMessage, "RVM_MAP SEGMENT ");
+  strcat(logMessage, mapped[num_mapped -1].name);
+  strcat(logMessage, "\n");
+  logRVM(rvm, logMessage);
+  logSegment(rvm, mapped[num_mapped - 1], logMessage);
   // lockf(fd, F_ULOCK, size_to_create); //Closing the fd has the same effect
   close(fd);
 
   /*unlock(log);
   printf("Segment file unlocked.\n");
   close(log);*/
-  
+  memset(buffer, '\0', 1024);
+  strcpy(buffer, rvm.dir);
+  strcat(buffer, "segments.log");
+  fd = open(buffer, O_RDWR | O_CREAT | O_APPEND, S_IRWXU);
+ 
+  memset(buffer, '\0', 1024);
+  strcpy(buffer, segname);
+  buffer[seglen] = '\n';
+  buffer[seglen + 1] = '\0';
+  write(fd, buffer, seglen + 2);
+  close(fd);
+
   return result;
 }
 
@@ -150,11 +179,17 @@ void rvm_unmap(rvm_t rvm, void *segbase) {
   for(i = 0; i < num_mapped; i++) {
     
     if(segbase == mapped[i].data) {
-      printf("Found segment to unmap.\n");
+      //printf("Found segment to unmap.\n");
       if(munmap(segbase, mapped[i].size) != 0) {
 	perror("Unable to unmap memory.");
 	return;
       } else {
+        char logMessage[100];
+  	strcpy(logMessage, "RVM_UNMAP SEGMENT ");
+  	strcat(logMessage, mapped[i].name);
+  	strcat(logMessage, "\n");
+  	logRVM(rvm, logMessage);
+  	logSegment(rvm, mapped[i], logMessage);
 	break; 
       }
 
@@ -163,8 +198,6 @@ void rvm_unmap(rvm_t rvm, void *segbase) {
       return;
     }
   }
-
-  printf("Remove gap in mapped list\n");
   for(;i < num_mapped - 1; i++) {
     mapped[i] = mapped[i + 1];
   }
@@ -172,17 +205,20 @@ void rvm_unmap(rvm_t rvm, void *segbase) {
 }
 
 void rvm_destroy(rvm_t rvm, const char *segname) {
-  int name_len, dir_len;
-  
-  name_len = strlen(segname);
-  dir_len = strlen(rvm.dir);
-
-  char buffer[dir_len + name_len + 1];
+  char buffer[1024];
 
   strcpy(buffer, rvm.dir);
   strcat(buffer, segname);
-  
   remove(buffer);
+
+  strcat(buffer, ".log");
+  remove(buffer);
+  
+  char logMessage[100];
+  strcpy(logMessage, "RVM_DESTROY SEGMENT ");
+  strcat(logMessage, segname);
+  strcat(logMessage, "\n");
+  logRVM(rvm, logMessage);
 }
 
 void lock_segment(rvm_t rvm , segment seg) {
@@ -211,6 +247,12 @@ trans_t rvm_begin_trans(rvm_t rvm, int numsegs, void **segbases) {
     for(i = 0; i < num_mapped; i++) {
       if(mapped[i].data == segbases[j]) {
 	lock_segment(rvm, mapped[i]);
+	char logMessage[100];
+  	strcpy(logMessage, "RVM_BEGINTRANS SEGMENT ");
+  	strcat(logMessage, mapped[i].name);
+  	strcat(logMessage, "\n");
+	logRVM(rvm, logMessage);
+ 	logSegment(rvm, mapped[i], logMessage);
       }
     }
   }
@@ -226,12 +268,12 @@ void write_segment(rvm_t rvm, segment seg) {
   strcpy(buffer, rvm.dir);
   strcat(buffer, seg.name);
   fd = open(buffer, O_RDWR, S_IRWXU);
-  printf("Writing Segment with %d ranges\n", seg.numRanges);
+  //printf("Writing Segment with %d ranges\n", seg.numRanges);
   for(itr = 0; itr < seg.numRanges; itr++)
   {
 	int offset = seg.ranges[itr].offset;
         int size = seg.ranges[itr].size;
-	printf("Writing to range (%d, %d)\n", offset, size);
+	//printf("Writing to range (%d, %d)\n", offset, size);
   	lseek(fd, -1 * seg.size + offset, SEEK_END);
   	i = 0;
   	while((i += write(fd, seg.data + offset, size)) < size);
@@ -246,6 +288,12 @@ void rvm_commit_trans(trans_t trans) {
      for(j = 0; j < num_mapped; j++) {
        if(trans.segbases[i] == mapped[j].data) {
 	 write_segment(trans.rvm, mapped[j]);
+	 char logMessage[100];
+  	 strcpy(logMessage, "RVM_COMMITTRANS SEGMENT ");
+  	 strcat(logMessage, mapped[j].name);
+  	 strcat(logMessage, "\n");
+	 logRVM(trans.rvm, logMessage);
+ 	 logSegment(trans.rvm, mapped[j], logMessage);
        }
      }
    }
@@ -265,29 +313,31 @@ segment* getSegmentFromSegBase(void* segbase)
 }
 
 void rvm_about_to_modify(trans_t tid, void *segbase, int offset, int size)
-{
-	printf("HERERERE\n");    	
+{  	
 	segment* seg;
 	struct range rng;
 
 	rng.offset = offset;
 	rng.size = size;
-	printf("Trying to get segment\n");
     	seg = getSegmentFromSegBase(segbase);
     	if(seg != NULL)
     	{
-		printf("Adding range to segment\n");
 		seg->ranges[seg->numRanges] = rng;
 		seg->numRanges++;
-		printf("Range Added.\n");
+		char logMessage[250];
+  		sprintf(logMessage, "RVM_MODIFY SEGMENT %s OFFSET: %d SIZE: %d", seg->name, offset, size);
+  		strcat(logMessage, "\n");
+		logRVM(tid.rvm, logMessage);
+ 		logSegment(tid.rvm, *seg, logMessage);
 	}
-	printf("Leaving Modify\n");
 }
 
 void rvm_abort_trans(trans_t tid)
 {
-   int i, j;
+  int i, j, k, size;
+  
    for(i = 0; i < tid.numsegs; i++) {
+     //printf("Aborting segment %d\n", i);
      for(j = 0; j < num_mapped; j++) {
        if(tid.segbases[i] == mapped[j].data) {
 	int dirlen, seglen, fd;
@@ -298,7 +348,26 @@ void rvm_abort_trans(trans_t tid)
   	strcpy(buffer, tid.rvm.dir);
   	strcat(buffer, mapped[j].name);
   	fd = open(buffer, O_RDWR, S_IRWXU);
-  	printf("Aborting transaction, data not flushed.\n");
+  	char logMessage[100];
+  	strcpy(logMessage, "RVM_ABORTTRANS ");
+  	strcat(logMessage, mapped[j].name);
+  	strcat(logMessage, "\n");
+ 	logSegment(tid.rvm, mapped[j], logMessage);
+	
+	k = 0;
+	//printf("Get segment size in abort.\n");
+	size = mapped[j].size;
+	while(k < size) {
+	  if(mapped[j].data == NULL)
+	    printf("Your segment data pointer is null.\n");
+
+	  k += read(fd, mapped[j].data + k, size - k);
+	}
+	char logMessageRVM[100];
+  	strcpy(logMessageRVM, "RVM_ABORTTRANS ");
+  	strcat(logMessageRVM, "\n");
+	logRVM(tid.rvm, logMessageRVM);
+			       
 	//Unnecessary, close has the same effect
 	//lockf(fd, F_ULOCK, mapped[j].size); 
   	close(fd);
@@ -307,6 +376,100 @@ void rvm_abort_trans(trans_t tid)
    }	
 }
 
+void logRVM(rvm_t rvm, char* logMessage)
+{
+  int dirlen, seglen, msglen, fd, i;
+  dirlen = strlen(rvm.dir);
+  msglen = strlen(logMessage);
+
+  char buffer[dirlen + 10];
+  strcpy(buffer, rvm.dir);
+  strcat(buffer, "store.log");
+  fd = open(buffer, O_RDWR | O_APPEND, S_IRWXU);
+  i = 0;
+  while((i += write(fd, logMessage + i, msglen - i)) < msglen);
+  
+  if(verbose != 0)
+  {
+  	printf("%s", logMessage);
+  }
+  //lockf(fd, F_ULOCK, seg.size); //Unnecessary, close has the same effect
+  close(fd);
+}
+
+void logSegment(rvm_t rvm, segment seg, char* logMessage)
+{
+  int dirlen, seglen, msglen, fd, i;
+  dirlen = strlen(rvm.dir);
+  seglen = strlen(seg.name);
+  msglen = strlen(logMessage);
+  char buffer[dirlen + seglen + 5];
+  strcpy(buffer, rvm.dir);
+  strcat(buffer, seg.name);
+  strcat(buffer, ".log");
+  fd = open(buffer, O_RDWR | O_APPEND | O_CREAT, S_IRWXU);
+  i = 0;
+  while((i += write(fd, logMessage + i, msglen - i)) < msglen);
+  
+  //lockf(fd, F_ULOCK, seg.size); //Unnecessary, close has the same effect
+  close(fd);
+}
+
+void rvm_verbose(int enable_flag)
+{
+	verbose = enable_flag;
+}
+
+void rvm_truncate_log(rvm_t rvm)
+{
+  int i;
+  FILE* file;
+  char buffer[1024], segment[1024];
+  strcpy(buffer, rvm.dir);
+  strcat(buffer, "segments.log");
+  file = fopen(buffer, "r+");
+
+  memset(buffer, '\0', 1024);
+  fgets(buffer, 1024, file);
+  for(i = 0; buffer[i] != '\n'; i++);
+
+  while(buffer[i] != EOF) { 
+    buffer[i] = '\0';
+    strcpy(segment, rvm.dir);
+    strcat(segment, buffer);
+    strcat(segment, ".log");
+    
+    open(segment, O_RDWR | O_TRUNC, S_IRWXU);
+    memset(buffer, '\0', 1024);
+    fgets(buffer, 1024, file);
+    for(i = 0; buffer[i] != '\n'; i++);
+  }
+
+  strcpy(segment, rvm.dir);
+  strcat(segment, buffer);
+  strcat(segment, ".log");
+    
+  open(segment, O_RDWR | O_TRUNC, S_IRWXU);
+  
+  //truncate main log with playthrough
+  int fd, j;
+  char log[1024];
+  
+  memset(log, '\0', 1024);
+  strcpy(log, rvm.dir);
+  strcat(log, "store.log");
+  fd = open(log, O_RDONLY, S_IRWXU);
+  
+  j = 0;
+  memset(buffer, '\0', 1024);
+  while ((j = read(fd, buffer, 1023)) > 0) {
+  buffer[j] = '\0';
+  printf("%s", buffer);
+  }
+
+  close(fd);
+  open(log, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU);
+}
 /*
 int main() {
   rvm_t store;
