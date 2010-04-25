@@ -8,7 +8,7 @@
 
 #include "rvm.h"
 
-#define MAXSEGS 8
+#define MAXSEGS 30
 
 segment mapped[MAXSEGS];
 int num_mapped;
@@ -428,7 +428,7 @@ void rvm_truncate_log(rvm_t rvm)
   fgets(buffer, 1024, file);
 
   while(buffer[0] != '\0') { 
-    for(i = 0; buffer[i] != '\n'; i++);
+    for(i = 0; buffer[i] != '\n' && buffer[i] != '\0'; i++);
     buffer[i] = '\0';
 
     memset(segment, '\0', 1024);
