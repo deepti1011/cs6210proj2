@@ -12,11 +12,9 @@ typedef struct _segment {
 } segment;
 
 
-struct _rvm_t {
+typedef struct _rvm_t {
   char* dir;
-};
-
-typedef struct _rvm_t rvm_t;
+} rvm_t;
 
 typedef struct _trans_t {
   void** segbases;
@@ -46,4 +44,3 @@ void rvm_verbose(int enable_flag);
 /*Helper methods*/
 void write_lock(int fd);
 void unlock(int fd);
-struct flock* file_lock(short type, short whence);
