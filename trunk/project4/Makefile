@@ -65,6 +65,6 @@ test: basic abort multi multi-abort truncate verbose maxsegments unmapinvalid
 	./truncate
 
 clean:
-	rm -r basic basic.o abort abort.o multi multi.o multi-abort 
-	multi-abort.o truncate truncate.o librvm.a rvm.o verbose.o verbose 
-	maxsegments maxsegments.o unmapinvalid unmapinvalid.o rvm_segments
+	rm -r basic basic.o abort abort.o multi multi.o multi-abort \
+	multi-abort.o truncate truncate.o librvm.a rvm.o verbose.o verbose \
+	maxsegments maxsegments.o unmapinvalid unmapinvalid.o rvm_segments \
