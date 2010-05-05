@@ -26,10 +26,10 @@ void proc1()
 		 char name[50];
 		 sprintf(name, "testseg%d", i);
 		 rvm_destroy(rvm, name);
-		 segs[0] = (char *) rvm_map(rvm, name, 10000);
+		 segs[i] = (char *) rvm_map(rvm, name, 10000);
 
 	     
-		 trans = rvm_begin_trans(rvm, 1, (void **) segs);
+		 trans = rvm_begin_trans(rvm, NUM_SEGS, (void **) segs);
 	     
 		 rvm_about_to_modify(trans, segs[i], 0, 100);
 		 sprintf(segs[i], TEST_STRING);
@@ -53,7 +53,7 @@ void proc2()
      
      rvm = rvm_init("rvm_segments");
 	 
-	 for(int i = 0; i < NUM_SEGS; i++)
+	 for(i = 0; i < NUM_SEGS; i++)
 	 {
 		 char name[50];
 		 sprintf(name, "testseg%d", i);
